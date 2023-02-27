@@ -771,7 +771,436 @@ QUnit.module('links', function(hooks) {
             assert.ok(label1Bbox.x > label2Bbox.x, 'second label is positioned before the first one after changing the first one position');
         });
 
+        QUnit.module('label properties', function(assert) {
+
+            QUnit.test('label.size - ref', function(assert) {
+
+                assert.expect(22);
+
+                var r1 = new joint.shapes.basic.Rect({ position: { x: 20, y: 30 }, size: { width: 120, height: 80 }});
+                var r2 = r1.clone().translate(300);
+                var r3 = r2.clone().translate(300);
+
+                this.graph.addCell([r1, r2, r3]);
+
+                // test that defaultLabel does not have effect on subelements with a `ref` attribute
+                // use joint.shapes.standard.Link, whose built-in `defaultLabel.attrs/rect/ref' = 'text'`
+                var l0 = new joint.shapes.standard.Link({
+                    source: { id: r1.id },
+                    target: { id: r2.id },
+                    labels: [{
+                        // l0-label0 - expect default dimensions (based on text size)
+                        attrs: { text: { text: 'test'}}
+                    },{
+                        // l0-label1 - expect default dimensions (based on text size)
+                        size: { width: 100, height: 30 }, // this should have no effect
+                        attrs: { text: { text: 'test' }}
+                    }]
+                });
+
+                this.graph.addCell([l0]);
+
+                var v0 = l0.findView(this.paper);
+                var v0Labels = v0.vel.findOne('.labels');
+
+                // avoid working with text width and height directly because it may differ in different test runner environments
+                var v0Label0 = v0Labels.findOne('.label[label-idx="0"]').findOne('rect');
+                var v0Label0Dimensions = v0Label0.getBBox(this.paper);
+                assert.notEqual(v0Label0Dimensions.width, 0, 'l0-label0 does not have width 0 (= we assume it has text width)');
+                assert.notEqual(v0Label0Dimensions.height, 0, 'l0-label0 does not have height 0 (= we assume it has text height)');
+
+                var v0Label1 = v0Labels.findOne('.label[label-idx="1"]').findOne('rect');
+                var v0Label1Dimensions = v0Label1.getBBox(this.paper);
+                assert.notEqual(v0Label1Dimensions.width, 100, 'l0-label1 does not have width 100 from local `label.size` (= we assume it has text width)');
+                assert.notEqual(v0Label1Dimensions.height, 30, 'l0-label1 does not have height 30 from local `label.size` (= we assume it has text height)');
+                assert.equal(v0Label1Dimensions.width, v0Label0Dimensions.width, 'l0-label1 has same width as l0-label0 (= we assume it has text width)');
+                assert.equal(v0Label1Dimensions.height, v0Label0Dimensions.height, 'l0-label1 has same height as l0-label0 (= we assume it has text height)');
+
+                // test local `label.size`
+                // create a custom link type #1 with defaultLabel where `attrs/rect` doesn't have `ref` attribute
+                var NoRefLabelLink = joint.shapes.standard.Link.define('example.NoRefLabelLink', {
+                    defaultLabel: {
+                        attrs: {
+                            rect: {
+                                ref: null
+                            }
+                        }
+                    }
+                });
+
+                var l1 = new NoRefLabelLink({
+                    source: { id: r1.id },
+                    target: { id: r2.id },
+                    labels: [{
+                        // l1-label0 - expect default dimensions (based on text size)
+                        attrs: { text: { text: 'test'}}
+                    },{
+                        // l1-label1 - expect `label.size` dimensions = (101,31)
+                        size: { width: 101, height: 31 },
+                        attrs: { text: { text: 'test' }}
+                    }]
+                });
+
+                this.graph.addCell([l1]);
+
+                var v1 = l1.findView(this.paper);
+                var v1Labels = v1.vel.findOne('.labels');
+
+                var v1Label0 = v1Labels.findOne('.label[label-idx="0"]').findOne('rect');
+                var v1Label0Dimensions = v1Label0.getBBox(this.paper);
+                assert.equal(v1Label0Dimensions.width, 0, 'l1-label0 has expected width (= 0)');
+                assert.equal(v1Label0Dimensions.height, 0, 'l1-label0 has expected height (= 0)');
+
+                var v1Label1 = v1Labels.findOne('.label[label-idx="1"]').findOne('rect');
+                var v1Label1Dimensions = v1Label1.getBBox(this.paper);
+                assert.equal(v1Label1Dimensions.width, 101, 'l1-label1 has expected width (= local `label.size.width`)');
+                assert.equal(v1Label1Dimensions.height, 31, 'l1-label1 has expected height (= local `label.size.height`)');
+
+                // test instance-specific `defaultLabel.size`
+                var l2 = new NoRefLabelLink({
+                    source: { id: r1.id },
+                    target: { id: r2.id },
+                    defaultLabel: {
+                        size: { width: 102, height: 32 }
+                    },
+                    labels: [{
+                        // l2-label0 - expect instance-specific `defaultLabel.size` dimensions = (102,32)
+                        attrs: { text: { text: 'test'}}
+                    },{
+                        // l2-label1 - expect `label.size` dimensions = (101,31)
+                        size: { width: 101, height: 31 },
+                        attrs: { text: { text: 'test' }}
+                    }]
+                });
+
+                this.graph.addCell([l2]);
+
+                var v2 = l2.findView(this.paper);
+                var v2Labels = v2.vel.findOne('.labels');
+
+                var v2Label0 = v2Labels.findOne('.label[label-idx="0"]').findOne('rect');
+                var v2Label0Dimensions = v2Label0.getBBox(this.paper);
+                assert.equal(v2Label0Dimensions.width, 102, 'l2-label0 has expected width (= instance-specific `defaultLabel.size.width`)');
+                assert.equal(v2Label0Dimensions.height, 32, 'l2-label0 has expected height (= instance-specific `defaultLabel.size.height`)');
+
+                var v2Label1 = v2Labels.findOne('.label[label-idx="1"]').findOne('rect');
+                var v2Label1Dimensions = v2Label1.getBBox(this.paper);
+                assert.equal(v2Label1Dimensions.width, 101, 'l2-label1 has expected width (= local `label.size.width`)');
+                assert.equal(v2Label1Dimensions.height, 31, 'l2-label1 has expected height (= local `label.size.height`)');
+
+                // test class-specific `defaultLabel.size`
+                // create a custom link type #2 with defaultLabel where `attrs/rect` doesn't have `ref` attribute, and where `size` is specified
+                var DefaultLabelSizeLink = NoRefLabelLink.define('example.DefaultLabelSizeLink', {
+                    defaultLabel: {
+                        size: { width: 103, height: 33 }
+                    }
+                });
+
+                var l3 = new DefaultLabelSizeLink({
+                    source: { id: r1.id },
+                    target: { id: r2.id },
+                    labels: [{
+                        // l3-label0 - expect class-specific `defaultLabel.size` dimensions = (103, 33)
+                        attrs: { text: { text: 'test'}}
+                    },{
+                        // l3-label1 - expect `label.size` dimensions = (101,31)
+                        size: { width: 101, height: 31 },
+                        attrs: { text: { text: 'test' }}
+                    }]
+                });
+
+                this.graph.addCell([l3]);
+
+                var v3 = l3.findView(this.paper);
+                var v3Labels = v3.vel.findOne('.labels');
+
+                var v3Label0 = v3Labels.findOne('.label[label-idx="0"]').findOne('rect');
+                var v3Label0Dimensions = v3Label0.getBBox(this.paper);
+                assert.equal(v3Label0Dimensions.width, 103, 'l3-label0 has expected width (= class-specific `defaultLabel.size.width`)');
+                assert.equal(v3Label0Dimensions.height, 33, 'l3-label0 has expected height (= class-specific `defaultLabel.size.height`)');
+
+                var v3Label1 = v3Labels.findOne('.label[label-idx="1"]').findOne('rect');
+                var v3Label1Dimensions = v3Label1.getBBox(this.paper);
+                assert.equal(v3Label1Dimensions.width, 101, 'l3-label1 has expected width (= local `label.size.width`)');
+                assert.equal(v3Label1Dimensions.height, 31, 'l3-label1 has expected height (= local `label.size.height`)');
+
+                // test overwriting of class-specific `defaultLabel.size` by instance-specific `defaultLabel.size`
+                var l4 = new DefaultLabelSizeLink({
+                    source: { id: r1.id },
+                    target: { id: r2.id },
+                    defaultLabel: {
+                        size: { width: 104, height: 34 }
+                    },
+                    labels: [{
+                        // l4-label0 - expect instance-specific `defaultLabel.size` dimensions = (104,34)
+                        attrs: { text: { text: 'test'}}
+                    },{
+                        // l4-label1 - expect `label.size` dimensions = (101,31)
+                        size: { width: 101, height: 31 },
+                        attrs: { text: { text: 'test' }}
+                    }]
+                });
+
+                this.graph.addCell([l4]);
+
+                var v4 = l4.findView(this.paper);
+                var v4Labels = v4.vel.findOne('.labels');
+
+                var v4Label0 = v4Labels.findOne('.label[label-idx="0"]').findOne('rect');
+                var v4Label0Dimensions = v4Label0.getBBox(this.paper);
+                assert.equal(v4Label0Dimensions.width, 104, 'l4-label0 has expected width (= instance-specific `defaultLabel.size.width`)');
+                assert.equal(v4Label0Dimensions.height, 34, 'l4-label0 has expected height (= instance-specific `defaultLabel.size.height`)');
+
+                var v4Label1 = v4Labels.findOne('.label[label-idx="1"]').findOne('rect');
+                var v4Label1Dimensions = v4Label1.getBBox(this.paper);
+                assert.equal(v4Label1Dimensions.width, 101, 'l4-label1 has expected width (= local `label.size.width`)');
+                assert.equal(v4Label1Dimensions.height, 31, 'l4-label1 has expected height (= local `label.size.height`)');
+            });
+
+            QUnit.test('label.size - calc()', function(assert) {
+
+                assert.expect(22);
+
+                var r1 = new joint.shapes.basic.Rect({ position: { x: 20, y: 30 }, size: { width: 120, height: 80 }});
+                var r2 = r1.clone().translate(300);
+                var r3 = r2.clone().translate(300);
+
+                this.graph.addCell([r1, r2, r3]);
+
+                // test that defaultLabel does not have effect on subelements with a `ref` attribute
+                // use joint.shapes.standard.Link, whose built-in `defaultLabel.attrs/rect/ref' = 'text'`
+                var l0 = new joint.shapes.standard.Link({
+                    source: { id: r1.id },
+                    target: { id: r2.id },
+                    labels: [{
+                        // l0-label0 - expect default dimensions (based on text size)
+                        attrs: { text: { text: 'test'}}
+                    },{
+                        // l0-label1 - expect default dimensions (based on text size)
+                        size: { width: 100, height: 30 }, // this should have no effect
+                        attrs: { text: { text: 'test' }}
+                    }]
+                });
+
+                this.graph.addCell([l0]);
+
+                var v0 = l0.findView(this.paper);
+                var v0Labels = v0.vel.findOne('.labels');
+
+                // avoid working with text width and height directly because it may differ in different test runner environments
+                var v0Label0 = v0Labels.findOne('.label[label-idx="0"]').findOne('rect');
+                var v0Label0Dimensions = v0Label0.getBBox(this.paper);
+                assert.notEqual(v0Label0Dimensions.width, 0, 'l0-label0 does not have width 0 (= we assume it has text width)');
+                assert.notEqual(v0Label0Dimensions.height, 0, 'l0-label0 does not have height 0 (= we assume it has text height)');
+
+                var v0Label1 = v0Labels.findOne('.label[label-idx="1"]').findOne('rect');
+                var v0Label1Dimensions = v0Label1.getBBox(this.paper);
+                assert.notEqual(v0Label1Dimensions.width, 100, 'l0-label1 does not have width 100 from local `label.size` (= we assume it has text width)');
+                assert.notEqual(v0Label1Dimensions.height, 30, 'l0-label1 does not have height 30 from local `label.size` (= we assume it has text height)');
+                assert.equal(v0Label1Dimensions.width, v0Label0Dimensions.width, 'l0-label1 has same width as l0-label0 (= we assume it has text width)');
+                assert.equal(v0Label1Dimensions.height, v0Label0Dimensions.height, 'l0-label1 has same height as l0-label0 (= we assume it has text height)');
+
+                // test local `label.size`
+                // create a custom link type #1 with defaultLabel where `attrs/rect` doesn't have `ref` attribute and all `ref_` attributes are replaced by `calc()` operations
+                var CalcNoRefLabelLink = joint.shapes.standard.Link.define('example.CalcNoRefLabelLink', {
+                    defaultLabel: {
+                        attrs: {
+                            rect: {
+                                ref: null,
+                                refWidth: null,
+                                refHeight: null,
+                                refX: null,
+                                refY: null,
+                                width: 'calc(w)',
+                                height: 'calc(h)',
+                                x: 'calc(x)',
+                                y: 'calc(y)'
+                            }
+                        }
+                    }
+                });
+
+                var l1 = new CalcNoRefLabelLink({
+                    source: { id: r1.id },
+                    target: { id: r2.id },
+                    labels: [{
+                        // l1-label0 - expect default dimensions (based on text size)
+                        attrs: { text: { text: 'test'}}
+                    },{
+                        // l1-label1 - expect `label.size` dimensions = (101,31)
+                        size: { width: 101, height: 31 },
+                        attrs: { text: { text: 'test' }}
+                    }]
+                });
+
+                this.graph.addCell([l1]);
+
+                var v1 = l1.findView(this.paper);
+                var v1Labels = v1.vel.findOne('.labels');
+
+                var v1Label0 = v1Labels.findOne('.label[label-idx="0"]').findOne('rect');
+                var v1Label0Dimensions = v1Label0.getBBox(this.paper);
+                assert.equal(v1Label0Dimensions.width, 0, 'l1-label0 has expected width (= 0)');
+                assert.equal(v1Label0Dimensions.height, 0, 'l1-label0 has expected height (= 0)');
+
+                var v1Label1 = v1Labels.findOne('.label[label-idx="1"]').findOne('rect');
+                var v1Label1Dimensions = v1Label1.getBBox(this.paper);
+                assert.equal(v1Label1Dimensions.width, 101, 'l1-label1 has expected width (= local `label.size.width`)');
+                assert.equal(v1Label1Dimensions.height, 31, 'l1-label1 has expected height (= local `label.size.height`)');
+
+                // test instance-specific `defaultLabel.size`
+                var l2 = new CalcNoRefLabelLink({
+                    source: { id: r1.id },
+                    target: { id: r2.id },
+                    defaultLabel: {
+                        size: { width: 102, height: 32 }
+                    },
+                    labels: [{
+                        // l2-label0 - expect instance-specific `defaultLabel.size` dimensions = (102,32)
+                        attrs: { text: { text: 'test'}}
+                    },{
+                        // l2-label1 - expect `label.size` dimensions = (101,31)
+                        size: { width: 101, height: 31 },
+                        attrs: { text: { text: 'test' }}
+                    }]
+                });
+
+                this.graph.addCell([l2]);
+
+                var v2 = l2.findView(this.paper);
+                var v2Labels = v2.vel.findOne('.labels');
+
+                var v2Label0 = v2Labels.findOne('.label[label-idx="0"]').findOne('rect');
+                var v2Label0Dimensions = v2Label0.getBBox(this.paper);
+                assert.equal(v2Label0Dimensions.width, 102, 'l2-label0 has expected width (= instance-specific `defaultLabel.size.width`)');
+                assert.equal(v2Label0Dimensions.height, 32, 'l2-label0 has expected height (= instance-specific `defaultLabel.size.height`)');
+
+                var v2Label1 = v2Labels.findOne('.label[label-idx="1"]').findOne('rect');
+                var v2Label1Dimensions = v2Label1.getBBox(this.paper);
+                assert.equal(v2Label1Dimensions.width, 101, 'l2-label1 has expected width (= local `label.size.width`)');
+                assert.equal(v2Label1Dimensions.height, 31, 'l2-label1 has expected height (= local `label.size.height`)');
+
+                // test class-specific `defaultLabel.size`
+                // create a custom link type #2 with defaultLabel where `attrs/rect` doesn't have `ref` attribute  and all `ref_` attributes are replaced by `calc()` operations, and where `size` is specified
+                var CalcDefaultLabelSizeLink = CalcNoRefLabelLink.define('example.CalcDefaultLabelSizeLink', {
+                    defaultLabel: {
+                        size: { width: 103, height: 33 }
+                    }
+                });
+
+                var l3 = new CalcDefaultLabelSizeLink({
+                    source: { id: r1.id },
+                    target: { id: r2.id },
+                    labels: [{
+                        // l3-label0 - expect class-specific `defaultLabel.size` dimensions = (103, 33)
+                        attrs: { text: { text: 'test'}}
+                    },{
+                        // l3-label1 - expect `label.size` dimensions = (101,31)
+                        size: { width: 101, height: 31 },
+                        attrs: { text: { text: 'test' }}
+                    }]
+                });
+
+                this.graph.addCell([l3]);
+
+                var v3 = l3.findView(this.paper);
+                var v3Labels = v3.vel.findOne('.labels');
+
+                var v3Label0 = v3Labels.findOne('.label[label-idx="0"]').findOne('rect');
+                var v3Label0Dimensions = v3Label0.getBBox(this.paper);
+                assert.equal(v3Label0Dimensions.width, 103, 'l3-label0 has expected width (= class-specific `defaultLabel.size.width`)');
+                assert.equal(v3Label0Dimensions.height, 33, 'l3-label0 has expected height (= class-specific `defaultLabel.size.height`)');
+
+                var v3Label1 = v3Labels.findOne('.label[label-idx="1"]').findOne('rect');
+                var v3Label1Dimensions = v3Label1.getBBox(this.paper);
+                assert.equal(v3Label1Dimensions.width, 101, 'l3-label1 has expected width (= local `label.size.width`)');
+                assert.equal(v3Label1Dimensions.height, 31, 'l3-label1 has expected height (= local `label.size.height`)');
+
+                // test overwriting of class-specific `defaultLabel.size` by instance-specific `defaultLabel.size`
+                var l4 = new CalcDefaultLabelSizeLink({
+                    source: { id: r1.id },
+                    target: { id: r2.id },
+                    defaultLabel: {
+                        size: { width: 104, height: 34 }
+                    },
+                    labels: [{
+                        // l4-label0 - expect instance-specific `defaultLabel.size` dimensions = (104,34)
+                        attrs: { text: { text: 'test'}}
+                    },{
+                        // l4-label1 - expect `label.size` dimensions = (101,31)
+                        size: { width: 101, height: 31 },
+                        attrs: { text: { text: 'test' }}
+                    }]
+                });
+
+                this.graph.addCell([l4]);
+
+                var v4 = l4.findView(this.paper);
+                var v4Labels = v4.vel.findOne('.labels');
+
+                var v4Label0 = v4Labels.findOne('.label[label-idx="0"]').findOne('rect');
+                var v4Label0Dimensions = v4Label0.getBBox(this.paper);
+                assert.equal(v4Label0Dimensions.width, 104, 'l4-label0 has expected width (= instance-specific `defaultLabel.size.width`)');
+                assert.equal(v4Label0Dimensions.height, 34, 'l4-label0 has expected height (= instance-specific `defaultLabel.size.height`)');
+
+                var v4Label1 = v4Labels.findOne('.label[label-idx="1"]').findOne('rect');
+                var v4Label1Dimensions = v4Label1.getBBox(this.paper);
+                assert.equal(v4Label1Dimensions.width, 101, 'l4-label1 has expected width (= local `label.size.width`)');
+                assert.equal(v4Label1Dimensions.height, 31, 'l4-label1 has expected height (= local `label.size.height`)');
+            });
+        });
+
         QUnit.test('labelMove', function(assert) {
+
+            assert.expect(4);
+
+            var r1 = new joint.shapes.basic.Rect({ position: { x: 50, y: 50 }, size: { width: 50, height: 50 }});
+            var r2 = r1.clone().translate(250);
+
+            this.graph.addCell([r1, r2]);
+
+            var l0 = new joint.shapes.standard.Link({
+                source: { id: r1.id }, // left anchor = (100, 75)
+                target: { id: r2.id }, // right anchor = (300, 75)
+                labels: [{
+                    position: .5, // midpoint = (200, 75)
+                    attrs: { text: { text: 'test label' }} // text anchor = center = midpoint
+                }]
+            });
+
+            this.graph.addCell(l0);
+
+            var v0 = this.paper.findViewByModel(l0);
+            v0.options.interactive = { labelMove: true };
+            var event = { currentTarget: v0.$('.label')[0], type: 'mousedown' };
+            v0.dragLabelStart(event, 200, 75); // mousedown exactly on-center = midpoint
+            v0.pointermove(event, 150, 25);
+            assert.equal(l0.get('labels')[0].position.offset, -50, 'offset was set during the label drag (on-center pointerdown)');
+            assert.equal(l0.get('labels')[0].position.distance, .25, 'distance was set during the label drag (on-center pointerdown');
+            v0.pointerup(event);
+
+            var l1 = new joint.shapes.standard.Link({
+                source: { id: r1.id }, // left anchor = (100, 75)
+                target: { id: r2.id }, // right anchor = (300, 75)
+                labels: [{
+                    position: .5, // midpoint = (200, 75)
+                    attrs: { text: { text: 'test label' }}
+                }]
+            });
+
+            this.graph.addCell(l1);
+
+            var v1 = this.paper.findViewByModel(l1);
+            v1.options.interactive = { labelMove: true };
+            var event = { currentTarget: v1.$('.label')[0], type: 'mousedown' };
+            v1.dragLabelStart(event, 202, 77); // mousedown off-center = midpoint + (2, 2)
+            v1.pointermove(event, 152, 27); // same movement as above = same resulting `position` as above
+            assert.equal(l1.get('labels')[0].position.offset, -50, 'offset was set during the label drag (off-center pointerdown)');
+            assert.equal(l1.get('labels')[0].position.distance, .25, 'distance was set during the label drag (off-center pointerdown)');
+            v1.pointerup(event);
+        });
+
+        QUnit.test('label - keepGradient', function(assert) {
 
             assert.expect(2);
 
@@ -780,26 +1209,56 @@ QUnit.module('links', function(hooks) {
 
             this.graph.addCell([r1, r2]);
 
-            var l0 = new joint.dia.Link({
-                source: { id: r1.id },
-                target: { id: r2.id },
-                attrs: { '.connection': { stroke: 'black' }},
-                labels: [
-                    { position: .5, attrs: { text: { text: 'test label' }}}
-                ]
+            var l0 = new joint.shapes.standard.Link({
+                source: { id: r1.id }, // left anchor = (100, 75)
+                target: { id: r2.id }, // right anchor = (300, 75)
+                labels: [{
+                    position: {
+                        distance: .5, // midpoint = (200, 75)
+                        args: {
+                            keepGradient: true
+                        }
+                    },
+                    attrs: { text: { text: 'test label' }} // text anchor = center = midpoint
+                }]
             });
 
             this.graph.addCell(l0);
 
             var v0 = this.paper.findViewByModel(l0);
-
             v0.options.interactive = { labelMove: true };
-            var event = { currentTarget: v0.$('.label')[0], type: 'mousedown' };
-            v0.dragLabelStart(event);
-            v0.pointermove(event, 150, 25);
-            assert.equal(l0.get('labels')[0].position.offset, -50, 'offset was set during the label drag');
-            assert.equal(l0.get('labels')[0].position.distance, .25, 'distance was set during the label drag');
-            v0.pointerup(event);
+            var evt0 = { currentTarget: v0.$('.label')[0], type: 'mousedown' };
+            v0.dragLabelStart(evt0, 200, 75);
+            v0.pointermove(evt0, 200, 25);
+            var l0labelRotation = V.decomposeMatrix(v0.el.querySelector('.labels .label').getCTM()).rotation;
+            assert.equal(l0labelRotation, 0, 'label angle does not change when label is moved around straight-line link (relative offset)');
+            v0.pointerup(evt0);
+
+            var l1 = new joint.shapes.standard.Link({
+                source: { id: r1.id }, // left anchor = (100, 75)
+                target: { id: r2.id }, // right anchor = (300, 75)
+                labels: [{
+                    position: {
+                        distance: .5, // midpoint = (200, 75)
+                        args: {
+                            keepGradient: true,
+                            absoluteOffset: true,
+                        }
+                    },
+                    attrs: { text: { text: 'test label' }} // text anchor = center = midpoint
+                }]
+            });
+
+            this.graph.addCell(l1);
+
+            var v1 = this.paper.findViewByModel(l1);
+            v1.options.interactive = { labelMove: true };
+            var evt1 = { currentTarget: v1.$('.label')[0], type: 'mousedown' };
+            v1.dragLabelStart(evt1, 200, 75);
+            v1.pointermove(evt1, 200, 25);
+            var l1labelRotation = V.decomposeMatrix(v1.el.querySelector('.labels .label').getCTM()).rotation;
+            assert.equal(l1labelRotation, 0, 'label angle does not change when label is moved around straight-line link (absolute offset)');
+            v1.pointerup(evt1);
         });
 
         QUnit.test('change:labels', function(assert) {

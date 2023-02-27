@@ -2,7 +2,6 @@
 <html lang="en">
     <head>
 
-        <link rel="canonical" href="https://www.jointjs.com" />
         <meta name="description" content="Create interactive diagrams in JavaScript easily. JointJS plugins for ERD, Org chart, FSA, UML, PN, DEVS, LDM diagrams are ready to use." />
         <meta name="keywords" content="JointJS, JavaScript, diagrams, diagramming library, UML, charts" />
 
@@ -32,7 +31,7 @@
 
         <div id="ports" class="tutorial">
 
-            <h2>Working with Ports</h2>
+            <h1>Working with Ports</h1>
 
             <p>
                 Many diagramming applications deal with the idea of elements with ports. Ports are often displayed
@@ -251,6 +250,65 @@ model.addPorts([
     }
 ]);
 </code></pre>
+
+            <h3 id="port-prop">Setting port properties</h3>
+
+            <p>
+                If you are already familiar with the <a href="/docs/jointjs#dia.Element.prototype.prop" target="_blank"><code>prop()</code></a>
+                method for Elements and Links, JointJS also provides a similar method for working with ports. 
+                <a href="/docs/jointjs#dia.Element.prototype.portProp" target="_blank"><code>portProp()</code></a> allows users to set 
+                presentation attributes or custom data properties on an element port.
+            </p>
+
+            <pre><code> const port = {
+    id: 'custom-port-id', // set a custom ID
+    label: {
+        markup: [{
+            tagName: 'text',
+            selector: 'label'
+        }]
+    },
+    attrs: { 
+        portBody: { 
+            magnet: true,
+            width: 16,
+            height: 16,
+            x: -8,
+            y: -8,
+            fill:  '#03071E'
+        }, 
+        label: { 
+            text: 'port' 
+        }
+    },
+    markup: [{
+        tagName: 'rect',
+        selector: 'portBody'
+    }]
+};
+                        
+const element = new joint.shapes.standard.Rectangle({
+    position: { x: 275, y: 50 },
+    size: { width: 90, height: 90 },
+    attrs: {
+        body: {
+            fill: '#8ECAE6'
+        }
+    },
+    ports: {
+        items: [ port ] 
+    }
+});
+
+element.portProp('custom-port-id', 'attrs/portBody', { r: 8, fill: 'darkslateblue' });
+
+const portId = element.getPorts()[0].id;
+
+element.portProp(portId, 'custom', { testAttribute: true });
+console.log(element.portProp(portId, 'custom'));  // {testAttribute: true}
+
+element.portProp(portId, 'attrs/portBody/fill', 'tomato');
+</code></pre> 
 
             <h3 id="link">Linking elements with ports</h3>
 

@@ -457,7 +457,7 @@ export const LinkView = CellView.extend({
     },
 
 
-    // merge default label attrs into label attrs
+    // merge default label attrs into label attrs (or use built-in default label attrs if neither is provided)
     // keep `undefined` or `null` because `{}` means something else
     _mergeLabelAttrs: function(hasCustomMarkup, labelAttrs, defaultLabelAttrs, builtinDefaultLabelAttrs) {
 
@@ -479,6 +479,22 @@ export const LinkView = CellView.extend({
         return merge({}, builtinDefaultLabelAttrs, defaultLabelAttrs, labelAttrs);
     },
 
+    // merge default label size into label size (no built-in default)
+    // keep `undefined` or `null` because `{}` means something else
+    _mergeLabelSize: function(labelSize, defaultLabelSize) {
+
+        if (labelSize === null) return null;
+        if (labelSize === undefined) {
+
+            if (defaultLabelSize === null) return null;
+            if (defaultLabelSize === undefined) return undefined;
+
+            return defaultLabelSize;
+        }
+
+        return merge({}, defaultLabelSize, labelSize);
+    },
+
     updateLabels: function() {
 
         if (!this._V.labels) return this;
@@ -493,6 +509,7 @@ export const LinkView = CellView.extend({
         var defaultLabel = model._getDefaultLabel();
         var defaultLabelMarkup = defaultLabel.markup;
         var defaultLabelAttrs = defaultLabel.attrs;
+        var defaultLabelSize = defaultLabel.size;
 
         for (var i = 0, n = labels.length; i < n; i++) {
 
@@ -504,6 +521,7 @@ export const LinkView = CellView.extend({
             var label = labels[i];
             var labelMarkup = label.markup;
             var labelAttrs = label.attrs;
+            var labelSize = label.size;
 
             var attrs = this._mergeLabelAttrs(
                 (labelMarkup || defaultLabelMarkup),
@@ -512,8 +530,13 @@ export const LinkView = CellView.extend({
                 builtinDefaultLabelAttrs
             );
 
+            var size = this._mergeLabelSize(
+                labelSize,
+                defaultLabelSize
+            );
+
             this.updateDOMSubtreeAttributes(labelNode, attrs, {
-                rootBBox: new Rect(label.size),
+                rootBBox: new Rect(size),
                 selectors: selectors
             });
         }
@@ -991,12 +1014,40 @@ export const LinkView = CellView.extend({
         this.targetAnchor.offset(tx, ty);
     },
 
+    // combine default label position with built-in default label position
+    _getDefaultLabelPositionProperty: function() {
+
+        var model = this.model;
+
+        var builtinDefaultLabel = model._builtins.defaultLabel;
+        var builtinDefaultLabelPosition = builtinDefaultLabel.position;
+
+        var defaultLabel = model._getDefaultLabel();
+        var defaultLabelPosition = this._normalizeLabelPosition(defaultLabel.position);
+
+        return merge({}, builtinDefaultLabelPosition, defaultLabelPosition);
+    },
+
     // if label position is a number, normalize it to a position object
     // this makes sure that label positions can be merged properly
     _normalizeLabelPosition: function(labelPosition) {
 
         if (typeof labelPosition === 'number') return { distance: labelPosition, offset: null, angle: 0, args: null };
         return labelPosition;
+    },
+
+    // expects normalized position properties
+    // e.g. `this._normalizeLabelPosition(labelPosition)` and `this._getDefaultLabelPositionProperty()`
+    _mergeLabelPositionProperty: function(normalizedLabelPosition, normalizedDefaultLabelPosition) {
+
+        if (normalizedLabelPosition === null) return null;
+        if (normalizedLabelPosition === undefined) {
+
+            if (normalizedDefaultLabelPosition === null) return null;
+            return normalizedDefaultLabelPosition;
+        }
+
+        return merge({}, normalizedDefaultLabelPosition, normalizedLabelPosition);
     },
 
     updateLabelPositions: function() {
@@ -1013,20 +1064,14 @@ export const LinkView = CellView.extend({
         var labels = model.get('labels') || [];
         if (!labels.length) return this;
 
-        var builtinDefaultLabel = model._builtins.defaultLabel;
-        var builtinDefaultLabelPosition = builtinDefaultLabel.position;
-
-        var defaultLabel = model._getDefaultLabel();
-        var defaultLabelPosition = this._normalizeLabelPosition(defaultLabel.position);
-
-        var defaultPosition = merge({}, builtinDefaultLabelPosition, defaultLabelPosition);
+        var defaultLabelPosition = this._getDefaultLabelPositionProperty();
 
         for (var idx = 0, n = labels.length; idx < n; idx++) {
             var labelNode = this._labelCache[idx];
             if (!labelNode) continue;
             var label = labels[idx];
             var labelPosition = this._normalizeLabelPosition(label.position);
-            var position = merge({}, defaultPosition, labelPosition);
+            var position = this._mergeLabelPositionProperty(labelPosition, defaultLabelPosition);
             var transformationMatrix = this._getLabelTransformationMatrix(position);
             labelNode.setAttribute('transform', V.matrixToTransformString(transformationMatrix));
             this._cleanLabelMatrices(idx);
@@ -1171,15 +1216,20 @@ export const LinkView = CellView.extend({
         }
     },
 
+    _getLabelPositionProperty: function(idx) {
+
+        return (this.model.label(idx).position || {});
+    },
+
     _getLabelPositionAngle: function(idx) {
 
-        var labelPosition = this.model.label(idx).position || {};
+        var labelPosition = this._getLabelPositionProperty(idx);
         return (labelPosition.angle || 0);
     },
 
     _getLabelPositionArgs: function(idx) {
 
-        var labelPosition = this.model.label(idx).position || {};
+        var labelPosition = this._getLabelPositionProperty(idx);
         return labelPosition.args;
     },
 
@@ -1620,7 +1670,7 @@ export const LinkView = CellView.extend({
         var angle = labelAngle;
         if (tangent) {
             if (isOffsetAbsolute) {
-                translation = tangent.start;
+                translation = tangent.start.clone();
                 translation.offset(labelOffsetCoordinates);
             } else {
                 var normal = tangent.clone();
@@ -1628,15 +1678,17 @@ export const LinkView = CellView.extend({
                 normal.setLength(labelOffset);
                 translation = normal.end;
             }
+
             if (isKeepGradient) {
                 angle = (tangent.angle() + labelAngle);
                 if (isEnsureLegibility) {
                     angle = normalizeAngle(((angle + 90) % 180) - 90);
                 }
             }
+
         } else {
             // fallback - the connection has zero length
-            translation = path.start;
+            translation = path.start.clone();
             if (isOffsetAbsolute) translation.offset(labelOffsetCoordinates);
         }
 
@@ -1887,12 +1939,20 @@ export const LinkView = CellView.extend({
         });
     },
 
-    dragLabelStart: function(evt, _x, _y) {
+    dragLabelStart: function(evt, x, y) {
 
         if (this.can('labelMove')) {
 
             var labelNode = evt.currentTarget;
             var labelIdx = parseInt(labelNode.getAttribute('label-idx'), 10);
+
+            var defaultLabelPosition = this._getDefaultLabelPositionProperty();
+            var initialLabelPosition = this._normalizeLabelPosition(this._getLabelPositionProperty(labelIdx));
+            var position = this._mergeLabelPositionProperty(initialLabelPosition, defaultLabelPosition);
+
+            var coords = this.getLabelCoordinates(position);
+            var dx = coords.x - x; // how much needs to be added to cursor x to get to label x
+            var dy = coords.y - y; // how much needs to be added to cursor y to get to label y
 
             var positionAngle = this._getLabelPositionAngle(labelIdx);
             var labelPositionArgs = this._getLabelPositionArgs(labelIdx);
@@ -1902,6 +1962,8 @@ export const LinkView = CellView.extend({
             this.eventData(evt, {
                 action: 'label-move',
                 labelIdx: labelIdx,
+                dx: dx,
+                dy: dy,
                 positionAngle: positionAngle,
                 positionArgs: positionArgs,
                 stopPropagation: true
@@ -1964,7 +2026,7 @@ export const LinkView = CellView.extend({
     dragLabel: function(evt, x, y) {
 
         var data = this.eventData(evt);
-        var label = { position: this.getLabelPosition(x, y, data.positionAngle, data.positionArgs) };
+        var label = { position: this.getLabelPosition((x + data.dx), (y + data.dy), data.positionAngle, data.positionArgs) };
         if (this.paper.options.snapLabels) delete label.position.offset;
         this.model.label(data.labelIdx, label);
     },

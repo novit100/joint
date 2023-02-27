@@ -358,6 +358,42 @@ QUnit.module('element ports', function() {
             assert.equal(shapeView.$el.find('.custom-rect').prop('tagName'), 'rect');
         });
 
+        QUnit.test('port update/render count', function(assert) {
+            const model = new joint.shapes.standard.Rectangle({
+                size: { width: 100, height: 100 },
+                ports: {
+                    items: [{ id: 'port1' }, { id: 'port2' }]
+                }
+            });
+            const shapeView = new joint.dia.ElementView({ model: model });
+            const renderPortsSpy = sinon.spy(shapeView, '_renderPorts');
+            const updatePortsSpy = sinon.spy(shapeView, '_updatePorts');
+            const flags = joint.dia.ElementView.Flags;
+            // 1 update exactly
+            [
+                [flags.PORTS], // on ports change
+                [flags.UPDATE], // on attrs change
+                [flags.RESIZE, flags.PORTS, flags.TOOLS], // on resize
+            ].forEach(flags => {
+                renderPortsSpy.resetHistory();
+                updatePortsSpy.resetHistory();
+                shapeView.confirmUpdate(shapeView.getFlag(flags), {});
+                assert.equal(renderPortsSpy.callCount, 1);
+                assert.equal(updatePortsSpy.callCount, 1);
+            });
+            // No update
+            [
+                [flags.TRANSLATE], // on position change
+                [flags.ROTATE], // on angle change
+            ].forEach(flags => {
+                renderPortsSpy.resetHistory();
+                updatePortsSpy.resetHistory();
+                shapeView.confirmUpdate(shapeView.getFlag(flags), {});
+                assert.equal(renderPortsSpy.callCount, 0);
+                assert.equal(updatePortsSpy.callCount, 0);
+            });
+        });
+
         QUnit.test('Selectors', function(assert) {
 
             var shape = create({
@@ -934,4 +970,95 @@ QUnit.module('element ports', function() {
             shape.addPorts([{ id: 'x' }, { id: 'y' }]);
         });
     });
+
+    QUnit.module('rendering', function(hooks) {
+
+        let graph, paper;
+
+        hooks.beforeEach(function() {
+            graph = new joint.dia.Graph;
+            var fixtures = document.getElementById('qunit-fixture');
+            var paperEl = document.createElement('div');
+            fixtures.appendChild(paperEl);
+            paper = new joint.dia.Paper({ el: paperEl, model: graph });
+        });
+
+        hooks.afterEach(function() {
+            paper.remove();
+        });
+
+        QUnit.test('referencing port label node', function(assert) {
+            const model = new joint.shapes.standard.Rectangle({
+                size: { width: 200, height: 200 },
+                portLabelMarkup: [
+                    {
+                        tagName: 'rect',
+                        selector: 'rectCopy'
+                    },
+                    {
+                        tagName: 'rect',
+                        selector: 'rectRef'
+                    }
+                ],
+                ports: {
+                    groups: {
+                        left: {
+                            position: 'left',
+                            label: {
+                                position: {
+                                    name: 'manual',
+                                    args: {
+                                        attrs: {
+                                            'rectRef': {
+                                                x: -11,
+                                                y: -13
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            attrs: {
+                                rectCopy: {
+                                    ref: 'rectRef',
+                                    fill: 'red',
+                                    x: 'calc(x)',
+                                    y: 'calc(y)',
+                                    width: 'calc(w)',
+                                    height: 'calc(h)'
+                                },
+                                rectRef: {
+                                    width: 100,
+                                    height: 20,
+                                },
+                            }
+                        },
+                    },
+                    items: [{
+                        id: 'p1',
+                        group: 'left'
+                    }]
+                }
+            });
+            model.addTo(graph, { async: false });
+            const shapeView = model.findView(paper);
+            const rectRefNode = shapeView.findPortNode('p1', 'rectRef');
+            const rectCopyNode = shapeView.findPortNode('p1', 'rectCopy');
+            const x = Number(rectRefNode.getAttribute('x'));
+            const y = Number(rectRefNode.getAttribute('y'));
+            const width = Number(rectRefNode.getAttribute('width'));
+            const height = Number(rectRefNode.getAttribute('height'));
+            // Reference rectangle should have a position and size set.
+            assert.notEqual(x, 0);
+            assert.notEqual(y, 0);
+            assert.notEqual(width, 0);
+            assert.notEqual(height, 0);
+            // Rectangle copy should have the same position and size
+            // as the reference rectangle.
+            assert.equal(Number(rectCopyNode.getAttribute('x')), x);
+            assert.equal(Number(rectCopyNode.getAttribute('y')), y);
+            assert.equal(Number(rectCopyNode.getAttribute('width')), width);
+            assert.equal(Number(rectCopyNode.getAttribute('height')), height);
+        });
+    });
+
 });
